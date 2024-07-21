@@ -8,8 +8,6 @@ import json
 import pprint 
 import statistics
 
-OPENAI_API_KEY = "" # Your API key here
-
 """
 Load Dataset
 """
