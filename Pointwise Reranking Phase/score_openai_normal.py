@@ -74,6 +74,9 @@ results = {
 
 TRIALS = 3
 
+"""
+ASK LLM to get scores
+"""
 for i in range(PASSAGE_NUM):
     eprint(i)
     if i > 0:
@@ -83,7 +86,7 @@ for i in range(PASSAGE_NUM):
     qa_pair = qa_pairs[i]
     question = qa_pair["question"]
     answer = qa_pair["answer"]
-    qa_pair_prompt = "Question: " + question + "\nAnswer: " + answer + "\nPassage: "
+    qa_pair_prompt = "Question: " + question + "\nPassage: "
     
     human_passage = qa_pair_prompt + openai_passages[i]['human_true']
     openai_passage = qa_pair_prompt + openai_passages[i]['ai_true']
@@ -112,6 +115,9 @@ for i in range(PASSAGE_NUM):
     with open(SCORES_RESULTS, 'w') as f:
         json.dump(results, f, indent=4)
 
+"""
+Organize and Print the Result
+"""
 with open(SCORES_RESULTS, 'r') as f:
     results = json.load(f)
 new_res = {
