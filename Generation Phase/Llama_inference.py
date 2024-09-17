@@ -3,26 +3,30 @@
 
 import os
 import sys
-os.system("pip install openai==1.9.0") # ensure correct version of openai for Llama inference
+os.system("pip install openai==1.9.0") # ensure correct version of openai for ChatGPT inference
+
 import openai
+from openai import OpenAI
 import re
 import time
 import json
 import pprint # pretty print
 from prettytable import PrettyTable as pt
 
-OPENAI_API_BASE = "substitute server address here"
+# OPENAI_API_BASE = "substitute server address here"
+OPENAI_API_BASE = "substitute llama openai api base here"
 PREFERENCE_PROMPT = "Please answer the question based on the following two passages. The answer must be retrieved from one of the passages. Only 1 passage! Cannot refer to both.\n"
 FORMAT_PROMPT = "Please answer with the following format: Answer: <short answer> Answer retrieved from which passage: <choose either 1 or 2>. No additional explanation needed. Don't write anything else.\n"
 FAIL_PROMPT = "Fail to generate a passage that includes the answer string."
 
-PASSAGES_LLAMA = sys.argv[1] # llama
-PASSAGES_OPENAI = sys.argv[2] # openai
+# PASSAGES_LLAMA = sys.argv[1] # llama
+# PASSAGES_OPENAI = sys.argv[2] # openai
+PASSAGES = sys.argv[1]
+KNOWLEDGE_CHECK = sys.argv[2]
 RESULTDIR_1 = sys.argv[3]
 RESULTDIR_2 = sys.argv[4]
 TIMES_4 = int(sys.argv[5]) # input 0 if don't want to inference chatgpt vs. llama
 TIMES_5 = int(sys.argv[6]) # input 0 if don't want to inference chatgpt vs. human
-KNOWLEDGE_CHECK = "data/nq_knowledge_scale_of_5_1000_llama.json"
 ASK_TIME = 5
 
 def eprint(*args, **kwargs):
@@ -53,17 +57,27 @@ def ask_llama(message, sys_prompt="You are a helpful assistant."):
           continue
     return "fail to generate answer"
 
-with open(PASSAGES_LLAMA, 'r') as f:
-    llama_passages = json.load(f)
-with open(PASSAGES_OPENAI, 'r') as f:
-    openai_passages = json.load(f)
+# with open(PASSAGES_LLAMA, 'r') as f:
+#     llama_passages = json.load(f)
+# with open(PASSAGES_OPENAI, 'r') as f:
+#     openai_passages = json.load(f)
+with open(PASSAGES, 'r') as f:
+    passages = json.load(f)
 with open(KNOWLEDGE_CHECK, 'r') as f:
     knowledge = json.load(f)
     knowledge_levels = knowledge['knowledge_level']
     distribution = knowledge['distribution']
 
 num_level = len(distribution)
+
 mp = {True : "TRUE", False : "FALSE"}
+def return_key(role: str, correctness: bool) -> str:
+  if role == 'chatgpt':
+    return ('gpt_true', 'answer') if correctness else ('gpt_false', 'gpt_false_ans')
+  elif role == 'llama':
+    return ('llama_true', 'answer') if correctness else ('llama_false', 'llama_false_ans')
+  else:
+    return ('human_true', 'answer') if correctness else ('human_false_gpt', 'gpt_false_ans')
 
 def check_bag_of_words(truth: str, ai_answer: str, debug = False, record = []) -> bool:
   """Uses bag of words and substring comparison to check if LLM has knowledge about a certain question.
@@ -226,28 +240,20 @@ def summarize(results: list, EXPECTED_LENGTH: int):
     sum_results[KNOWLEDGE_LEVEL][3] += 1
   return (sum_results)
 
-def LLM_vs_LLM_pairwise_passage_reading_comprehension(passage_1_reference: dict, passage_1_correctness: bool, passage_2_reference: dict, passage_2_correctness: bool):
+def LLM_vs_LLM_pairwise_passage_reading_comprehension(passage_1_key: str, answer_1_key: str, passage_2_key: str, answer_2_key: str):
   results = []
   failed_index = []
 
   for i in range(TIMES_4):
     if i % 100 == 0:
       eprint(f"Completed: {i}/{TIMES_4}")
-    if passage_1_correctness == True:  
-      passage_1 = passage_1_reference[i]['ai_true']
-      answer_1 = passage_1_reference[i]['true_answer']
-    else:
-      passage_1 = passage_1_reference[i]['ai_false']
-      answer_1 = passage_1_reference[i]['false_answer']
-    if passage_2_correctness == True:
-      passage_2 = passage_2_reference[i]['ai_true']
-      answer_2 = passage_2_reference[i]['true_answer']
-    else:
-      passage_2 = passage_2_reference[i]['ai_false']
-      answer_2 = passage_2_reference[i]['false_answer']
+    passage_1 = passages[i][passage_1_key]
+    answer_1 = passages[i][answer_1_key]
+    passage_2 = passages[i][passage_2_key]
+    answer_2 = passages[i][answer_2_key]
     done = reading_comprehension(
-        llama_passages[i]['question'],
-        llama_passages[i]['true_answer'],
+        passages[i]['question'],
+        passages[i]['answer'],
         passage_1,
         passage_2,
         answer_1,
@@ -259,9 +265,12 @@ def LLM_vs_LLM_pairwise_passage_reading_comprehension(passage_1_reference: dict,
   return results
 
 def LLM_vs_LLM_exp(EXPECTED_LENGTH: str, RESULT_DIR: str, num: str, passage_1_correctness: bool, passage_2_correctness: bool):
+  condition_1 = return_key('llama', passage_1_correctness)
+  condition_2 = return_key('chatgpt', passage_2_correctness)
+
   # Order 1
   eprint(f"========= Start of Exp. {num}.a: Llama {mp[passage_1_correctness]} vs. ChatGPT {mp[passage_2_correctness]} =========")
-  results_A = LLM_vs_LLM_pairwise_passage_reading_comprehension(llama_passages, passage_1_correctness, openai_passages, passage_2_correctness)
+  results_A = LLM_vs_LLM_pairwise_passage_reading_comprehension(condition_1[0], condition_1[1], condition_2[0], condition_2[1])
   result_file = os.path.join(RESULT_DIR, f"AI_preference_Llama_{mp[passage_1_correctness]}_ChatGPT_{mp[passage_2_correctness]}.json")
   with open(result_file, "w") as f:
     json.dump(results_A, f, indent=4)
@@ -272,7 +281,7 @@ def LLM_vs_LLM_exp(EXPECTED_LENGTH: str, RESULT_DIR: str, num: str, passage_1_co
 
   # Order 2
   eprint(f"========= Start of Exp. {num}.b: ChatGPT {mp[passage_2_correctness]} vs. Llama {mp[passage_1_correctness]} =========")
-  results_B = LLM_vs_LLM_pairwise_passage_reading_comprehension(openai_passages, passage_2_correctness, llama_passages, passage_1_correctness)
+  results_B = LLM_vs_LLM_pairwise_passage_reading_comprehension(condition_2[0], condition_2[1], condition_1[0], condition_1[1])
   result_file = os.path.join(RESULT_DIR, f"AI_preference_ChatGPT_{mp[passage_2_correctness]}_Llama_{mp[passage_1_correctness]}.json")
   with open(result_file, "w") as f:
     json.dump(results_B, f, indent=4)
@@ -287,32 +296,24 @@ def LLM_vs_LLM_exp(EXPECTED_LENGTH: str, RESULT_DIR: str, num: str, passage_1_co
 def LLM_vs_LLM(EXPECTED_LENGTH: int, RESULT_DIR: str):
   os.mkdir(RESULT_DIR)
   LLM_vs_LLM_exp(EXPECTED_LENGTH, RESULT_DIR, "4.1", True, True)
-  LLM_vs_LLM_exp(EXPECTED_LENGTH, RESULT_DIR, "4.2", True, False) # Llama (self) True, ChatGPT False
-  LLM_vs_LLM_exp(EXPECTED_LENGTH, RESULT_DIR, "4.3", False, True)
-  LLM_vs_LLM_exp(EXPECTED_LENGTH, RESULT_DIR, "4.4", False, False)
+  # LLM_vs_LLM_exp(EXPECTED_LENGTH, RESULT_DIR, "4.2", True, False) # Llama (self) True, ChatGPT False
+  # LLM_vs_LLM_exp(EXPECTED_LENGTH, RESULT_DIR, "4.3", False, True)
+  # LLM_vs_LLM_exp(EXPECTED_LENGTH, RESULT_DIR, "4.4", False, False)
 
-def LLM_vs_Human_pairwise_passage_reading_comprehension(passage_1_reference: dict, passage_1_correctness: bool, passage_2_reference: dict, passage_2_correctness: bool):
+def LLM_vs_Human_pairwise_passage_reading_comprehension(passage_1_key: str, answer_1_key: str, passage_2_key: str, answer_2_key: str):
   results = []
   failed_index = []
 
   for i in range(TIMES_5):
     if i % 100 == 0:
       eprint(f"Completed: {i}/{TIMES_5}")
-    if passage_1_correctness == True:  
-      passage_1 = passage_1_reference[i]['human_true']
-      answer_1 = passage_1_reference[i]['true_answer']
-    else:
-      passage_1 = passage_1_reference[i]['human_false']
-      answer_1 = passage_1_reference[i]['false_answer']
-    if passage_2_correctness == True:
-      passage_2 = passage_2_reference[i]['ai_true']
-      answer_2 = passage_2_reference[i]['true_answer']
-    else:
-      passage_2 = passage_2_reference[i]['ai_false']
-      answer_2 = passage_2_reference[i]['false_answer']
+    passage_1 = passages[i][passage_1_key]
+    answer_1 = passages[i][answer_1_key]
+    passage_2 = passages[i][passage_2_key]
+    answer_2 = passages[i][answer_2_key]
     done = reading_comprehension(
-        llama_passages[i]['question'],
-        llama_passages[i]['true_answer'],
+        passages[i]['question'],
+        passages[i]['answer'],
         passage_1,
         passage_2,
         answer_1,
@@ -325,10 +326,12 @@ def LLM_vs_Human_pairwise_passage_reading_comprehension(passage_1_reference: dic
 
 def LLM_vs_Human_exp(EXPECTED_LENGTH: str, RESULT_DIR: str, num: str, passage_1_correctness: bool, passage_2_correctness: bool):
   # Use other LLM's answers for human passages
+  condition_1 = return_key('llama', passage_1_correctness)
+  condition_2 = return_key('human', passage_2_correctness)
 
   # Order 1
   eprint(f"========= Start of Exp. {num}.a: Human {mp[passage_1_correctness]} vs. Llama {mp[passage_2_correctness]} =========")
-  results_A = LLM_vs_LLM_pairwise_passage_reading_comprehension(openai_passages, passage_1_correctness, llama_passages, passage_2_correctness)
+  results_A = LLM_vs_Human_pairwise_passage_reading_comprehension(condition_1[0], condition_1[1], condition_2[0], condition_2[1])
   result_file = os.path.join(RESULT_DIR, f"AI_preference_Human_{mp[passage_1_correctness]}_Llama_{mp[passage_2_correctness]}.json")
   with open(result_file, "w") as f:
     json.dump(results_A, f, indent=4)
@@ -339,7 +342,7 @@ def LLM_vs_Human_exp(EXPECTED_LENGTH: str, RESULT_DIR: str, num: str, passage_1_
 
   # Order 2
   eprint(f"========= Start of Exp. {num}.b: Llama {mp[passage_2_correctness]} vs. Human {mp[passage_1_correctness]} =========")
-  results_B = LLM_vs_LLM_pairwise_passage_reading_comprehension(llama_passages, passage_2_correctness, openai_passages, passage_1_correctness)
+  results_B = LLM_vs_Human_pairwise_passage_reading_comprehension(condition_2[0], condition_2[1], condition_1[0], condition_1[1])
   result_file = os.path.join(RESULT_DIR, f"AI_preference_Llama_{mp[passage_2_correctness]}_Human_{mp[passage_1_correctness]}.json")
   with open(result_file, "w") as f:
     json.dump(results_B, f, indent=4)

@@ -1,14 +1,28 @@
 python Llama_inference.py \
-        ../data/reading_comprehension_data_llama_1000.json \
-        ../data/reading_comprehension_data_openai_1000.json \
-        results/0721_llama_vs_chatgpt/ \
-        results/0721_llama_vs_human/ \
-        2 2 \
-        > results/0721_llama_results.txt
+        data/marco-both-true.json \
+        results/marco_knowledge_scale_of_5_llama.json \
+        results/0913_marco_llama_vs_chatgpt/ \
+        results/0913_marco_llama_vs_human/ \
+        1000 1000 \
+        > results/0913_marco_llama_chatgpt_results.txt
 python ChatGPT_inference.py \
-        ../data/reading_comprehension_data_llama_1000.json \
-        ../data/reading_comprehension_data_openai_1000.json \
-        results/0721_chatgpt_vs_llama/ \
-        results/0721_chatgpt_vs_human/ \
-        2 2 \
-        > results/0721_chatgpt_results.txt
+        data/marco-both-true.json \
+        results/marco_knowledge_scale_of_5_openai.json \
+        results/0913_marco_chatgpt_vs_llama/ \
+        results/0913_marco_chatgpt_vs_human/ \
+        1000 1000 \
+        > results/0913_marco_chatgpt_llama_results.txt
+python ChatGPT_inference.py \
+        data/nq-both-true.json \
+        results/nq_knowledge_scale_of_5_openai.json \
+        results/0913_nq_chatgpt_vs_llama/ \
+        results/0913_nq_chatgpt_vs_human/ \
+        0 1000 \
+        > results/0913_nq_chatgpt_llama_results.txt
+python Llama_inference.py \
+        data/nq-both-true.json \
+        results/nq_knowledge_scale_of_5_llama.json \
+        results/0913_nq_llama_vs_chatgpt/ \
+        results/0913_nq_llama_vs_human/ \
+        1000 1000 \
+        > results/0913_nq_llama_chatgpt_results.txt
