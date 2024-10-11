@@ -32,7 +32,7 @@ The processed datasets and results can be found in `data` or `Generation Phase/d
 ### Clone and Environment Setup
 
 ```bash
-git clone https://anonymous.4open.science/r/RAG-Self-Preference/
+git clone https://github.com/MiuLab/RAG-Self-Preference.git
 cd RAG-Self-Preference
 ```
 
